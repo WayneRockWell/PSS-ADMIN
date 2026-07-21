@@ -53,12 +53,14 @@ const FONTS = (
 --------------------------------------------------------- */
 const AGENT = { nom: "Dupuis", prenom: "Julien", matricule: "AG-1147", telephone: "+41 79 123 45 67", adresse: "8 Chemin des Crêts, 1218 Grand-Saconnex" };
 const AGENTS_DIRECTORY = { Dupuis: "Julien Dupuis", Nassar: "Karim Nassar" };
+const AGENTS_MATRICULES = { Dupuis: "AG-1147", Nassar: "AG-1148" };
 const ADMIN = { nom: "M. Rossier" };
 
 const initialAccounts = [
-  { id: 1, prenom: "Julien", nom: "Dupuis", role: "Agent", matricule: "AG-1147", email: "j.dupuis@praetorianswiss-security.ch", statut: "actif" },
-  { id: 2, prenom: "Karim", nom: "Nassar", role: "Agent", matricule: "AG-1148", email: "k.nassar@praetorianswiss-security.ch", statut: "actif" },
-  { id: 3, prenom: "Marc", nom: "Rossier", role: "Administrateur", matricule: "—", email: "m.rossier@praetorianswiss-security.ch", statut: "actif" },
+  { id: 1, prenom: "Julien", nom: "Dupuis", role: "Agent", matricule: "AG-1147", email: "j.dupuis@praetorianswiss-security.ch", password: "Agent1147!", statut: "actif" },
+  { id: 2, prenom: "Karim", nom: "Nassar", role: "Agent", matricule: "AG-1148", email: "k.nassar@praetorianswiss-security.ch", password: "Agent1148!", statut: "actif" },
+  { id: 3, prenom: "Marc", nom: "Rossier", role: "Administrateur", matricule: "—", email: "m.rossier@praetorianswiss-security.ch", password: "Admin2026!", statut: "actif" },
+  { id: 4, prenom: "Zaki", nom: "Rockwell", role: "Développeur", matricule: "—", email: "zaki.1999@live.fr", password: "Abc12345", statut: "actif" },
 ];
 
 const initialPendingRegistrations = [
@@ -380,17 +382,94 @@ function ReportForm({ initial, onSubmit, onCancel }) {
 }
 
 /* Bloc statut du rapport + gestion de la demande de modification */
-function PdfDownloadButton() {
-  const [clicked, setClicked] = useState(false);
+function buildReportHTML({ agentName, matricule, mission, rapport }) {
+  const statutLabel = rapport.statut === "RAS" ? "RAS — Rien à signaler" : "Anomalie constatée";
+  const statutColor = rapport.statut === "RAS" ? "#3E6350" : "#C8102E";
+  return `<!doctype html>
+<html><head><meta charset="utf-8"><title>Rapport d'intervention</title>
+<style>
+  @page { margin: 22mm 18mm; }
+  body { font-family: Helvetica, Arial, sans-serif; color: #0A0A0A; margin: 0; position: relative; }
+  .watermark { position: fixed; top: 45%; left: 50%; transform: translate(-50%, -50%); width: 280px; opacity: 0.08; z-index: -1; }
+  .row { display: flex; justify-content: space-between; align-items: flex-start; }
+  h1 { font-size: 16px; margin: 0; }
+  .muted { color: #6b6b6b; font-size: 11px; margin-top: 3px; }
+  .title { font-size: 13px; font-weight: bold; text-align: right; }
+  hr { border: none; border-top: 1px solid #d8d8d5; margin: 16px 0; }
+  .section { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b6b6b; border-bottom: 1px solid #d8d8d5; padding-bottom: 4px; margin: 18px 0 10px; }
+  .field-label { font-size: 9px; text-transform: uppercase; color: #6b6b6b; }
+  .field-value { font-size: 13px; margin-bottom: 12px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 20px; }
+  .statut { font-size: 13px; font-weight: bold; color: ${statutColor}; }
+  .anomalie-box { border: 1px solid #C8102E; border-radius: 6px; padding: 10px; margin-top: 10px; }
+  .footer { position: fixed; bottom: 8mm; left: 0; right: 0; text-align: center; font-size: 9px; color: #6b6b6b; border-top: 1px solid #d8d8d5; padding-top: 6px; }
+</style>
+</head>
+<body onload="window.print()">
+  <img class="watermark" src="${LOGO_BLANC}" />
+  <div class="row">
+    <div>
+      <h1>PRAETORIAN SWISS SECURITY</h1>
+      <div class="muted">Av. Louis-Casaï 71, 1216 Cointrin, Suisse · +41 (0)22 700 21 44</div>
+    </div>
+    <div class="title">RAPPORT D'INTERVENTION</div>
+  </div>
+
+  <div class="section">Agent</div>
+  <div class="grid">
+    <div><div class="field-label">Nom et prénom</div><div class="field-value">${agentName}</div></div>
+    <div><div class="field-label">Matricule</div><div class="field-value">${matricule}</div></div>
+    <div><div class="field-label">Date du rapport</div><div class="field-value">${TODAY}</div></div>
+  </div>
+
+  <div class="section">Détails de la mission</div>
+  <div class="grid">
+    <div><div class="field-label">Lieu</div><div class="field-value">${mission.lieu}</div></div>
+    <div><div class="field-label">Date / heure</div><div class="field-value">${mission.date} — ${mission.heure}</div></div>
+    <div><div class="field-label">Objectif</div><div class="field-value">${mission.objectif}</div></div>
+    ${mission.contact ? `<div><div class="field-label">Contact sur place</div><div class="field-value">${mission.contact}</div></div>` : ""}
+  </div>
+
+  <div class="section">Constat</div>
+  <div class="statut">${statutLabel}</div>
+  ${rapport.statut === "anomalie" && rapport.description ? `<div class="anomalie-box"><div class="field-label">Description de l'anomalie</div>${rapport.description}</div>` : ""}
+  ${(rapport.heureDebut || rapport.heureFin) ? `<div class="muted" style="margin-top:10px;">${rapport.heureDebut ? "Début : " + rapport.heureDebut + "&nbsp;&nbsp;&nbsp;" : ""}${rapport.heureFin ? "Fin : " + rapport.heureFin : ""}</div>` : ""}
+
+  <div class="section" style="margin-top:24px;">Validation</div>
+  <div class="muted">Rapport rédigé et validé électroniquement par l'agent via l'application Praetorian Swiss Security.</div>
+  <div class="muted">Toute modification ultérieure requiert l'accord de l'administrateur ou du développeur (traçabilité conservée).</div>
+
+  <div class="footer">Praetorian Swiss Security SARL — Document généré automatiquement — Confidentiel</div>
+</body></html>`;
+}
+
+function PdfDownloadButton({ agentName, matricule, mission, rapport }) {
+  const [blocked, setBlocked] = useState(false);
+
+  function handleClick() {
+    const w = window.open("", "_blank");
+    if (!w) { setBlocked(true); return; }
+    setBlocked(false);
+    w.document.write(buildReportHTML({ agentName, matricule, mission, rapport }));
+    w.document.close();
+  }
+
   return (
-    <button onClick={() => setClicked(true)}
-      className="mt-3 flex items-center gap-1.5 f-mono text-[10px] underline" style={{ color: C.brassLt }}>
-      <FileText size={12} /> {clicked ? "PDF généré (démo)" : "Télécharger le rapport en PDF"}
-    </button>
+    <>
+      <button onClick={handleClick}
+        className="mt-3 flex items-center gap-1.5 f-mono text-[10px] underline" style={{ color: C.brassLt }}>
+        <FileText size={12} /> Télécharger le rapport en PDF
+      </button>
+      {blocked && (
+        <div className="f-body text-[10px] mt-1" style={{ color: C.rust }}>
+          Le navigateur a bloqué la fenêtre. Autorise les pop-ups pour ce site puis réessaie.
+        </div>
+      )}
+    </>
   );
 }
 
-function ReportStatusPanel({ rapport, onWriteReport, onEditReport, onRequestModif }) {
+function ReportStatusPanel({ rapport, mission, agentName, matricule, onWriteReport, onEditReport, onRequestModif }) {
   const [showForm, setShowForm] = useState(false);
   const [reason, setReason] = useState("");
 
@@ -415,7 +494,7 @@ function ReportStatusPanel({ rapport, onWriteReport, onEditReport, onRequestModi
           {rapport.heureFin && <span>Fin : {rapport.heureFin}</span>}
         </div>
       )}
-      <PdfDownloadButton />
+      <PdfDownloadButton agentName={agentName} matricule={matricule} mission={mission} rapport={rapport} />
 
       {!mr && !showForm && (
         <button onClick={() => setShowForm(true)} className="mt-3 f-mono text-[10px] underline" style={{ color: C.brassLt }}>
@@ -834,7 +913,7 @@ function AgentApp({ missions, setMissions, payslips, news, notifications, notify
                   </div>
                 )}
 
-                <ReportStatusPanel rapport={rapport}
+                <ReportStatusPanel rapport={rapport} mission={activeMission} agentName={`${AGENT.prenom} ${AGENT.nom}`} matricule={AGENT.matricule}
                   onWriteReport={() => setScreen("report")}
                   onEditReport={() => setScreen("report")}
                   onRequestModif={requestModif} />
@@ -1021,7 +1100,7 @@ function AgentWebApp({ missions, setMissions, payslips, news, notifications, not
                       <div className="f-body text-xs" style={{ color: C.parchment }}>{selected.instructions}</div>
                     </div>
                   )}
-                  <ReportStatusPanel rapport={rapport}
+                  <ReportStatusPanel rapport={rapport} mission={selected} agentName={`${AGENT.prenom} ${AGENT.nom}`} matricule={AGENT.matricule}
                     onWriteReport={() => setShowReportForm(true)}
                     onEditReport={() => setShowReportForm(true)}
                     onRequestModif={requestModif} />
@@ -1361,7 +1440,7 @@ function MonthlyPlanning({ missions, onAddMission }) {
   );
 }
 
-function ReportDetailModal({ agent, rapport, onClose, onUpdate }) {
+function ReportDetailModal({ agent, agentFullName, mission, rapport, onClose, onUpdate }) {
   return (
     <Modal onClose={onClose} title="Détail du rapport">
       <div className="flex flex-wrap gap-2 mb-4">
@@ -1376,7 +1455,7 @@ function ReportDetailModal({ agent, rapport, onClose, onUpdate }) {
           {rapport.heureFin && <span>Fin : {rapport.heureFin}</span>}
         </div>
       )}
-      <PdfDownloadButton />
+      <PdfDownloadButton agentName={agentFullName || agent} matricule={AGENTS_MATRICULES[agent] || "—"} mission={mission} rapport={rapport} />
       {rapport.statut === "anomalie" && rapport.description && (
         <div className="mt-3 rounded-lg p-3" style={{ background: C.inkRaised2, border: `1px solid ${C.rust}` }}>
           <div className="f-mono text-[10px] mb-1" style={{ color: C.rust }}>ANOMALIE SIGNALÉE</div>
@@ -1421,6 +1500,7 @@ function AdminReports({ missions, setMissions, notify }) {
   );
 
   const current = selected ? missions.find((m) => m.id === selected.missionId)?.rapports[selected.agent] : null;
+  const currentMission = selected ? missions.find((m) => m.id === selected.missionId) : null;
 
   function updateSelectedRapport(patch) {
     setMissions((prev) => prev.map((m) =>
@@ -1461,7 +1541,7 @@ function AdminReports({ missions, setMissions, notify }) {
       </div>
 
       {selected && current && (
-        <ReportDetailModal agent={selected.agent} rapport={current} onClose={() => setSelected(null)} onUpdate={updateSelectedRapport} />
+        <ReportDetailModal agent={selected.agent} agentFullName={AGENTS_DIRECTORY[selected.agent]} mission={currentMission} rapport={current} onClose={() => setSelected(null)} onUpdate={updateSelectedRapport} />
       )}
     </>
   );
@@ -1470,6 +1550,7 @@ function AdminReports({ missions, setMissions, notify }) {
 function PendingRegistrationsPanel({ pending, setPending, setAccounts, showCreateButton, onCreateClick }) {
   const [approvingId, setApprovingId] = useState(null);
   const [matricule, setMatricule] = useState("");
+  const [tempPassword, setTempPassword] = useState("");
   const [confirmRefuse, setConfirmRefuse] = useState(null);
 
   function isComplete(p) {
@@ -1478,11 +1559,12 @@ function PendingRegistrationsPanel({ pending, setPending, setAccounts, showCreat
   }
 
   function confirmApprove(p) {
-    if (!matricule.trim()) return;
-    setAccounts((prev) => [...prev, { id: Date.now(), prenom: p.prenom, nom: p.nom, role: "Agent", matricule: matricule.trim(), email: p.email, statut: "actif" }]);
+    if (!matricule.trim() || !tempPassword.trim()) return;
+    setAccounts((prev) => [...prev, { id: Date.now(), prenom: p.prenom, nom: p.nom, role: "Agent", matricule: matricule.trim(), email: p.email, password: tempPassword.trim(), statut: "actif" }]);
     setPending((prev) => prev.filter((x) => x.id !== p.id));
     setApprovingId(null);
     setMatricule("");
+    setTempPassword("");
   }
 
   return (
@@ -1531,21 +1613,31 @@ function PendingRegistrationsPanel({ pending, setPending, setAccounts, showCreat
                 </div>
 
                 {approvingId === p.id ? (
-                  <div className="flex gap-2 items-end">
-                    <div className="flex-1">
-                      <div className="f-mono text-[10px] mb-1" style={{ color: C.muted }}>NUMÉRO D'AGENT À ATTRIBUER</div>
-                      <input value={matricule} onChange={(e) => setMatricule(e.target.value)} placeholder="Ex : AG-1149"
-                        className="w-full rounded-lg p-2.5 f-body text-sm focus:outline-none"
-                        style={{ background: C.inkRaised2, color: C.parchment, border: `1px solid ${C.line}` }} />
+                  <div className="flex flex-col gap-2">
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <div className="f-mono text-[10px] mb-1" style={{ color: C.muted }}>NUMÉRO D'AGENT À ATTRIBUER</div>
+                        <input value={matricule} onChange={(e) => setMatricule(e.target.value)} placeholder="Ex : AG-1149"
+                          className="w-full rounded-lg p-2.5 f-body text-sm focus:outline-none"
+                          style={{ background: C.inkRaised2, color: C.parchment, border: `1px solid ${C.line}` }} />
+                      </div>
+                      <div className="flex-1">
+                        <div className="f-mono text-[10px] mb-1" style={{ color: C.muted }}>MOT DE PASSE TEMPORAIRE</div>
+                        <input value={tempPassword} onChange={(e) => setTempPassword(e.target.value)} placeholder="Ex : Bienvenue2026!"
+                          className="w-full rounded-lg p-2.5 f-body text-sm focus:outline-none"
+                          style={{ background: C.inkRaised2, color: C.parchment, border: `1px solid ${C.line}` }} />
+                      </div>
                     </div>
-                    <button disabled={!matricule.trim()} onClick={() => confirmApprove(p)}
-                      className="py-2.5 px-4 rounded-lg f-body text-sm" style={{ background: matricule.trim() ? C.sentry : C.line, color: C.ink }}>
-                      Confirmer
-                    </button>
-                    <button onClick={() => { setApprovingId(null); setMatricule(""); }}
-                      className="py-2.5 px-4 rounded-lg f-body text-sm" style={{ background: "transparent", color: C.muted, border: `1px solid ${C.line}` }}>
-                      Annuler
-                    </button>
+                    <div className="flex gap-2">
+                      <button disabled={!matricule.trim() || !tempPassword.trim()} onClick={() => confirmApprove(p)}
+                        className="flex-1 py-2.5 rounded-lg f-body text-sm" style={{ background: (matricule.trim() && tempPassword.trim()) ? C.sentry : C.line, color: C.ink }}>
+                        Confirmer
+                      </button>
+                      <button onClick={() => { setApprovingId(null); setMatricule(""); setTempPassword(""); }}
+                        className="flex-1 py-2.5 rounded-lg f-body text-sm" style={{ background: "transparent", color: C.muted, border: `1px solid ${C.line}` }}>
+                        Annuler
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <div className="flex gap-2">
@@ -1933,6 +2025,7 @@ function DevApp({ accounts, setAccounts, missions, setMissions, pending, setPend
     m.agents.filter((a) => m.rapports[a]).map((a) => ({ missionId: m.id, mission: m, agent: a, rapport: m.rapports[a] }))
   );
   const openedRapport = openedReport ? missions.find((m) => m.id === openedReport.missionId)?.rapports[openedReport.agent] : null;
+  const openedMission = openedReport ? missions.find((m) => m.id === openedReport.missionId) : null;
 
   function updateOpenedRapport(patch) {
     setMissions((prev) => prev.map((m) =>
@@ -2135,10 +2228,10 @@ function DevApp({ accounts, setAccounts, missions, setMissions, pending, setPend
       </div>
 
       {openedRapport && (
-        <ReportDetailModal agent={openedReport.agent} rapport={openedRapport} onClose={() => setOpenedReport(null)} onUpdate={updateOpenedRapport} />
+        <ReportDetailModal agent={openedReport.agent} agentFullName={AGENTS_DIRECTORY[openedReport.agent]} mission={openedMission} rapport={openedRapport} onClose={() => setOpenedReport(null)} onUpdate={updateOpenedRapport} />
       )}
 
-      {showModal && <NewAccountModal onClose={() => setShowModal(false)} />}
+      {showModal && <NewAccountModal onClose={() => setShowModal(false)} onAdd={(a) => setAccounts((prev) => [...prev, { id: Date.now(), statut: "actif", ...a }])} />}
       {showMissionModal && <MissionFormModal onClose={() => setShowMissionModal(false)} onSave={saveNewMission} />}
       {editingMission && <MissionFormModal initial={editingMission} onClose={() => setEditingMission(null)} onSave={saveEditedMission} />}
       {confirmDeleteMission && (
@@ -2175,26 +2268,44 @@ function DevApp({ accounts, setAccounts, missions, setMissions, pending, setPend
   );
 }
 
-function NewAccountModal({ onClose }) {
+function NewAccountModal({ onClose, onAdd }) {
+  const [prenom, setPrenom] = useState("");
+  const [nom, setNom] = useState("");
+  const [role, setRole] = useState("Agent");
+  const [matricule, setMatricule] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  const complete = prenom.trim() && nom.trim() && email.trim() && password.trim() && (role !== "Agent" || matricule.trim());
+
   return (
     <Modal onClose={onClose} title="Créer un compte">
       <div className="flex flex-col gap-3">
         <div className="flex gap-3">
-          <Field label="Prénom" placeholder="Ex : Karim" />
-          <Field label="Nom" placeholder="Ex : Nassar" />
+          <Field label="Prénom" placeholder="Ex : Karim" value={prenom} onChange={(e) => setPrenom(e.target.value)} />
+          <Field label="Nom" placeholder="Ex : Nassar" value={nom} onChange={(e) => setNom(e.target.value)} />
         </div>
         <div>
           <div className="f-mono text-[10px] mb-1" style={{ color: C.muted }}>RÔLE</div>
           <div className="flex gap-2">
-            {["Agent", "Administrateur"].map((r) => (
-              <span key={r} className="f-body text-xs px-3 py-1.5 rounded-lg" style={{ background: C.inkRaised2, color: C.parchment, border: `1px solid ${C.brass}` }}>{r}</span>
+            {["Agent", "Administrateur", "Développeur"].map((r) => (
+              <button key={r} onClick={() => setRole(r)}
+                className="flex-1 f-body text-xs px-3 py-1.5 rounded-lg"
+                style={{ background: role === r ? C.brass : C.inkRaised2, color: role === r ? C.ink : C.parchment, border: `1px solid ${role === r ? C.brass : C.line}` }}>
+                {r}
+              </button>
             ))}
           </div>
         </div>
-        <Field label="Matricule (agents uniquement)" placeholder="Ex : AG-1149" />
-        <Field label="Email" placeholder="prenom.nom@praetorianswiss-security.ch" />
-        <Field label="Mot de passe temporaire" placeholder="Généré automatiquement" />
-        <button className="w-full mt-2 py-2.5 rounded-lg f-display text-sm tracking-wide" style={{ background: C.brass, color: C.ink }}>
+        {role === "Agent" && (
+          <Field label="Matricule" placeholder="Ex : AG-1149" value={matricule} onChange={(e) => setMatricule(e.target.value)} />
+        )}
+        <Field label="Email" placeholder="prenom.nom@praetorianswiss-security.ch" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <Field label="Mot de passe temporaire" placeholder="Ex : Bienvenue2026!" value={password} onChange={(e) => setPassword(e.target.value)} />
+        <button disabled={!complete}
+          onClick={() => { onAdd({ prenom, nom, role, matricule: role === "Agent" ? matricule : "—", email, password }); onClose(); }}
+          className="w-full mt-2 py-2.5 rounded-lg f-display text-sm tracking-wide"
+          style={{ background: complete ? C.brass : C.line, color: complete ? C.ink : C.muted }}>
           CRÉER LE COMPTE
         </button>
       </div>
@@ -2312,12 +2423,36 @@ function RegisterScreen({ onSubmit, onBackToLogin }) {
   );
 }
 
-function LoginScreen({ onLogin, onGoToRegister }) {
-  const [role, setRole] = useState("agent");
+function LoginScreen({ accounts, onLogin, onGoToRegister }) {
   const [view, setView] = useState("login"); // login | forgot | forgotSent | 2fa
+  const [identifiant, setIdentifiant] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const [code, setCode] = useState("");
+  const [matchedAccount, setMatchedAccount] = useState(null);
+
+  const ROLE_MAP = { Agent: "agent", Administrateur: "admin", Développeur: "dev" };
 
   function handleLoginClick() {
+    setError("");
+    if (!identifiant.trim() || !password.trim()) {
+      setError("Merci de renseigner ton identifiant et ton mot de passe.");
+      return;
+    }
+    const found = accounts.find((a) =>
+      a.email.toLowerCase() === identifiant.trim().toLowerCase() ||
+      (a.matricule && a.matricule !== "—" && a.matricule.toLowerCase() === identifiant.trim().toLowerCase())
+    );
+    if (!found || found.password !== password) {
+      setError("Identifiant ou mot de passe incorrect.");
+      return;
+    }
+    if (found.statut === "suspendu") {
+      setError("Ce compte a été suspendu. Contacte le développeur.");
+      return;
+    }
+    const role = ROLE_MAP[found.role] || "agent";
+    setMatchedAccount({ ...found, role });
     if (role === "agent") { onLogin(role); return; }
     setView("2fa"); // admin/dev : vérification supplémentaire
   }
@@ -2361,10 +2496,10 @@ function LoginScreen({ onLogin, onGoToRegister }) {
         <div className="flex flex-col items-center text-center mb-6">
           <Shield size={28} color={C.brass} />
           <div className="f-display text-lg mt-3" style={{ color: C.parchment }}>Vérification en deux étapes</div>
-          <div className="f-body text-xs mt-1" style={{ color: C.muted }}>Un code de sécurité a été envoyé par e-mail.</div>
+          <div className="f-body text-xs mt-1" style={{ color: C.muted }}>Un code de sécurité a été envoyé par e-mail à {matchedAccount?.email}.</div>
         </div>
         <Field label="Code de sécurité" placeholder="123456" value={code} onChange={(e) => setCode(e.target.value)} />
-        <button disabled={!code.trim()} onClick={() => onLogin(role)}
+        <button disabled={!code.trim()} onClick={() => onLogin(matchedAccount.role)}
           className="w-full mt-6 py-3 rounded-lg f-display text-sm tracking-wide"
           style={{ background: code.trim() ? C.brass : C.line, color: code.trim() ? C.ink : C.muted }}>
           VALIDER ET SE CONNECTER
@@ -2380,24 +2515,13 @@ function LoginScreen({ onLogin, onGoToRegister }) {
     <div className="rounded-xl p-10 mx-auto" style={{ width: 400, background: C.inkRaised, border: `1px solid ${C.line}` }}>
       <img src={LOGO_BLANC} alt="Praetorian Swiss Security" style={{ height: 64 }} className="mx-auto mb-8 block" />
 
-      <div className="flex gap-2 mb-6 justify-center">
-        {[{ k: "agent", label: "Agent" }, { k: "admin", label: "Admin" }, { k: "dev", label: "Dev" }].map(({ k, label }) => (
-          <button key={k} onClick={() => setRole(k)}
-            className="px-4 py-1.5 rounded-full f-mono text-[10px] uppercase tracking-wide"
-            style={{
-              background: role === k ? C.brass : "transparent",
-              color: role === k ? C.ink : C.muted,
-              border: `1px solid ${role === k ? C.brass : C.line}`,
-            }}>
-            {label}
-          </button>
-        ))}
+      <div className="flex flex-col gap-3">
+        <Field label="Identifiant (matricule ou e-mail)" placeholder="Ex : AG-1147 ou prenom.nom@praetorianswiss-security.ch"
+          value={identifiant} onChange={(e) => setIdentifiant(e.target.value)} />
+        <Field label="Mot de passe" placeholder="••••••••" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
       </div>
 
-      <div className="flex flex-col gap-3">
-        <Field label="Identifiant (matricule ou e-mail)" placeholder={role === "agent" ? "Ex : AG-1147" : "prenom.nom@praetorianswiss-security.ch"} />
-        <Field label="Mot de passe" placeholder="••••••••" type="password" />
-      </div>
+      {error && <div className="f-body text-xs mt-2" style={{ color: C.rust }}>{error}</div>}
 
       <button onClick={() => setView("forgot")} className="mt-2 f-mono text-[10px] uppercase tracking-wide" style={{ color: C.muted }}>
         Mot de passe oublié ?
@@ -2409,11 +2533,9 @@ function LoginScreen({ onLogin, onGoToRegister }) {
         SE CONNECTER
       </button>
 
-      {role === "agent" && (
-        <button onClick={onGoToRegister} className="w-full mt-3 f-mono text-[10px] uppercase tracking-wide" style={{ color: C.brassLt }}>
-          Pas encore de compte ? Créer un compte agent
-        </button>
-      )}
+      <button onClick={onGoToRegister} className="w-full mt-3 f-mono text-[10px] uppercase tracking-wide" style={{ color: C.brassLt }}>
+        Pas encore de compte ? Créer un compte agent
+      </button>
 
       <div className="f-mono text-[9px] text-center mt-5" style={{ color: C.muted }}>
         Accès réservé aux membres de l'équipe Praetorian Swiss Security
@@ -2455,7 +2577,7 @@ export default function App() {
 
       {stage === "login" && (
         <div className="w-full flex-1 flex items-center justify-center">
-          <LoginScreen onLogin={(r) => { setRole(r); setStage("app"); }} onGoToRegister={() => setStage("register")} />
+          <LoginScreen accounts={accounts} onLogin={(r) => { setRole(r); setStage("app"); }} onGoToRegister={() => setStage("register")} />
         </div>
       )}
 
@@ -2471,22 +2593,8 @@ export default function App() {
       {stage === "app" && (
         <div className="max-w-5xl w-full mx-auto">
           <div className="flex items-center justify-between mb-8">
-            <div className="flex items-center gap-3">
-              {[
-                { k: "agent", label: "AGENT · TERRAIN" },
-                { k: "admin", label: "ADMIN · QG" },
-                { k: "dev", label: "DEV" },
-              ].map(({ k, label }) => (
-                <button key={k} onClick={() => setRole(k)}
-                  className="f-display text-xs tracking-[0.2em] px-5 py-2.5 rounded-full"
-                  style={{
-                    background: role === k ? C.brass : "transparent",
-                    color: role === k ? C.ink : C.muted,
-                    border: `1px solid ${role === k ? C.brass : C.line}`,
-                  }}>
-                  {label}
-                </button>
-              ))}
+            <div className="f-mono text-[10px] uppercase tracking-wide" style={{ color: C.muted }}>
+              Connecté en tant que <span style={{ color: C.brassLt }}>{{ agent: "Agent", admin: "Administrateur", dev: "Développeur" }[role]}</span>
             </div>
             <button onClick={() => setStage("login")} className="f-mono text-[10px] uppercase tracking-wide" style={{ color: C.muted }}>
               Déconnexion
